@@ -58,16 +58,13 @@
         <button class="tab-btn" onclick="switchTab('ayarlar')">⚙️ Stok Yükle</button>
     </div>
 
-    <!-- REYON LİSTESİ -->
     <div id="listScreen" class="list-container"></div>
     <button id="btnExcelIndir" class="btn-export" onclick="wolvoxExcelIndir()">📥 Wolvox İçin Excel İndir</button>
 
-    <!-- AYARLAR & STOK YÜKLEME EKRANI -->
     <div id="ayarlarScreen" class="list-container" style="display:none;">
         <div class="ayarlar-card">
             <h3 style="color: var(--primary); margin-top: 0;">Excel'i Buluta Gönder</h3>
             
-            <!-- Buluttaki Stok Durumu Bildirimi -->
             <div id="sistemDurumBox" style="background: #e9ecef; color: #666;">
                 ⏳ Buluttaki stok durumu kontrol ediliyor...
             </div>
@@ -82,7 +79,6 @@
         </div>
     </div>
 
-    <!-- ONAY/RED DETAY EKRANI -->
     <div id="detailScreen">
         <div class="detail-header">
             <div>
@@ -104,7 +100,7 @@
 <script type="module">
     import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-    const supabaseUrl = 'https://ytexpxvxprpzhcgraans.supabase.co/rest/v1/magaza_sayim_onay'; 
+    const supabaseUrl = 'https://ytexpxvxprpzhcgraans.supabase.co'; 
     const supabaseKey = 'sb_publishable_FdqsDI_9kCgiO9OAay3Pdg_RBn7JnmF'; 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
