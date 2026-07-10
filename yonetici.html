@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AMBAR BUCAK Yönetici Paneli</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        :root { --primary: #0d47a1; --success: #28a745; --danger: #dc3545; --light: #f8f9fa; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #e9ecef; margin: 0; padding: 0; color: #333; }
+        
+        .header { background: var(--primary); color: white; padding: 20px; text-align: center; position: sticky; top: 0; z-index: 100; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .header h1 { margin: 0; font-size: 20px; }
+        .connection-status { font-size: 12px; margin-top: 5px; color: #90caf9; }
+
+        .tabs { display: flex; background: white; border-bottom: 1px solid #ddd; }
+        .tab-btn { flex: 1; padding: 15px; border: none; background: none; font-size: 14px; font-weight: bold; color: #666; cursor: pointer; transition: 0.3s; }
+        .tab-btn.active { color: var(--primary); border-bottom: 3px solid var(--primary); }
+
+        .list-container { padding: 15px; padding-bottom: 80px; }
+        .reyon-card { background: white; padding: 15px; border-radius: 12px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); border-left: 6px solid #ffc107; cursor: pointer; }
+        .reyon-card.onayli { border-left-color: var(--success); }
+        .reyon-baslik { font-size: 18px; font-weight: bold; margin-bottom: 5px; display: flex; justify-content: space-between;}
+        .reyon-detay { font-size: 13px; color: #666; }
+
+        #detailScreen { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 200; overflow-y: auto; flex-direction: column; }
+        .detail-header { background: #343a40; color: white; padding: 20px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; }
+        .btn-close { background: none; border: none; color: white; font-size: 24px; font-weight: bold; cursor: pointer; }
+        
+        .product-list { padding: 15px; flex-grow: 1; }
+        .product-item { padding: 12px 0; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+        .p-ad { font-weight: bold; font-size: 15px; }
+        .p-var { font-size: 12px; color: #e65100; background: #ffe0b2; padding: 3px 6px; border-radius: 4px; display: inline-block; margin-top: 4px; }
+        .p-adet { font-size: 22px; font-weight: 900; color: var(--primary); background: #e3f2fd; padding: 5px 15px; border-radius: 8px; }
+
+        .action-bar { padding: 15px; background: white; border-top: 1px solid #eee; display: flex; gap: 10px; position: sticky; bottom: 0; }
+        .btn-action { flex: 1; padding: 18px; border: none; border-radius: 10px; font-size: 16px; font-weight: bold; color: white; cursor: pointer; }
+        .btn-approve { background: var(--success); }
+        .btn-reject { background: var(--danger); }
+        .btn-export { position: fixed; bottom: 20px; left: 20px; right: 20px; background: #6f42c1; color: white; padding: 18px; border: none; border-radius: 12px; font-size: 16px; font-weight: bold; box-shadow: 0 4px 15px rgba(111, 66, 193, 0.4); cursor: pointer; z-index: 50; }
+        
+        /* Ayarlar Ekranı CSS */
+        .ayarlar-card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); text-align: center; }
+        .upload-area { border: 2px dashed #0d47a1; padding: 20px; border-radius: 8px; margin: 15px 0; background: #f8fbff; }
+        #sistemDurumBox { padding: 12px; border-radius: 8px; margin-bottom: 15px; font-size: 14px; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>👑 Ambar Bucak Yönetici</h1>
+        <div id="connStatus" class="connection-status">🔴 Supabase Bekleniyor...</div>
+    </div>
+
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('bekleyen')">⏳ Bekleyen</button>
+        <button class="tab-btn" onclick="switchTab('onaylanan')">✅ Onaylı</button>
+        <button class="tab-btn" onclick="switchTab('ayarlar')">⚙️ Stok Yükle</button>
+    </div>
+
+    <!-- REYON LİSTESİ -->
+    <div id="listScreen" class="list-container"></div>
+    <button id="btnExcelIndir" class="btn-export" onclick="wolvoxExcelIndir()">📥 Wolvox İçin Excel İndir</button>
+
+    <!-- AYARLAR & STOK YÜKLEME EKRANI -->
+    <div id="ayarlarScreen" class="list-container" style="display:none;">
+        <div class="ayarlar-card">
+            <h3 style="color: var(--primary); margin-top: 0;">Excel'i Buluta Gönder</h3>
+            
+            <!-- Buluttaki Stok Durumu Bildirimi -->
+            <div id="sistemDurumBox" style="background: #e9ecef; color: #666;">
+                ⏳ Buluttaki stok durumu kontrol ediliyor...
+            </div>
+
+            <p style="font-size: 13px; color: #666;">Wolvox Excel listenizi yüklediğinizde, personellerin ekranı otomatik olarak bu güncel listeyi çekecektir.</p>
+            
+            <div class="upload-area">
+                <input type="file" id="excelInput" accept=".xlsx, .csv" style="width: 100%; font-size: 14px;">
+            </div>
+            
+            <button id="btnUpload" class="btn-action btn-approve" style="width: 100%; background: #0dcaf0;" onclick="sistemeStokYukle()">🚀 Buluta Yükle</button>
+        </div>
+    </div>
+
+    <!-- ONAY/RED DETAY EKRANI -->
+    <div id="detailScreen">
+        <div class="detail-header">
+            <div>
+                <div style="font-size: 12px; color:#aaa;">İncelenen Reyon:</div>
+                <div id="detayLokasyon" style="font-size: 20px; font-weight: bold;">A1 Rafı</div>
+                <div id="detayPersonel" style="font-size: 12px; color:#0dcaf0; margin-top:3px;"></div>
+            </div>
+            <button class="btn-close" onclick="closeDetail()">✖</button>
+        </div>
+
+        <div class="product-list" id="detayUrunler"></div>
+
+        <div class="action-bar" id="actionBar">
+            <button class="btn-action btn-reject" onclick="reddetVeSil()">❌ REDDET (BAŞTAN SAY)</button>
+            <button class="btn-action btn-approve" onclick="onaylaVeKaydet()">✅ ONAYLA</button>
+        </div>
+    </div>
+
+<script type="module">
+    import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
+
+    const supabaseUrl = 'https://ytexpxvxprpzhcgraans.supabase.co'; 
+    const supabaseKey = 'sb_publishable_FdqsDI_9kCgiO9OAay3Pdg_RBn7JnmF'; 
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    let tumSaimlar = [];
+    let aktifSekme = 'bekleyen';
+    let incelenenReyonId = null;
+
+    async function verileriGetir() {
+        const { data, error } = await supabase.from('magaza_sayim_onay').select('*');
+        if(data) {
+            tumSaimlar = data;
+            durumKutulariniGuncelle();
+            if(aktifSekme !== 'ayarlar') listeyiCiz();
+            document.getElementById('connStatus').innerText = "🟢 Canlı Bağlantı Aktif";
+        }
+    }
+
+    verileriGetir();
+
+    supabase.channel('yonetici_dinle')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'magaza_sayim_onay' }, payload => {
+            verileriGetir();
+        }).subscribe();
+
+    window.switchTab = (sekme) => {
+        aktifSekme = sekme;
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        event.target.classList.add('active');
+        
+        if(sekme === 'ayarlar') {
+            document.getElementById('listScreen').style.display = "none";
+            document.getElementById('btnExcelIndir').style.display = "none";
+            document.getElementById('ayarlarScreen').style.display = "block";
+            durumKutulariniGuncelle();
+        } else {
+            document.getElementById('ayarlarScreen').style.display = "none";
+            document.getElementById('listScreen').style.display = "block";
+            document.getElementById('btnExcelIndir').style.display = "block";
+            listeyiCiz();
+        }
+    };
+
+    function durumKutulariniGuncelle() {
+        const stokListesi = tumSaimlar.find(item => item.id === 'SISTEM_STOK_LISTESI');
+        const durumBox = document.getElementById('sistemDurumBox');
+        
+        if(stokListesi && stokListesi.urunler) {
+            let adet = Object.keys(stokListesi.urunler).length;
+            durumBox.innerHTML = `✅ Bulutta <b>${adet}</b> adet stok kartı yüklü ve personelin kullanımına hazır.`;
+            durumBox.style.background = "#d4edda";
+            durumBox.style.color = "#155724";
+        } else {
+            durumBox.innerHTML = `⚠️ Bulutta stok listesi bulunamadı! Lütfen Wolvox Excel'ini yükleyin.`;
+            durumBox.style.background = "#fff3cd";
+            durumBox.style.color = "#856404";
+        }
+    }
+
+    function listeyiCiz() {
+        const listDiv = document.getElementById('listScreen');
+        listDiv.innerHTML = "";
+
+        // SISTEM_STOK_LISTESI verisini arayüzde göstermemek için filtreledik
+        let gosterilecekler = tumSaimlar.filter(item => 
+            item.id !== 'SISTEM_STOK_LISTESI' &&
+            (aktifSekme === 'bekleyen' ? item.durum === "Onay Bekliyor" : item.durum === "Onaylandı")
+        );
+
+        if(gosterilecekler.length === 0) {
+            listDiv.innerHTML = `<div style="text-align:center; padding: 40px 20px; color:#888;">Bu sekmede gösterilecek kayıt yok.</div>`;
+            return;
+        }
+
+        gosterilecekler.forEach(item => {
+            let urunCesitSayisi = Object.keys(item.urunler).length;
+            let toplamUrun = 0;
+            for(let b in item.urunler) { toplamUrun += item.urunler[b].miktar; }
+
+            let cssClass = item.durum === "Onaylandı" ? "reyon-card onayli" : "reyon-card";
+            
+            listDiv.innerHTML += `
+                <div class="${cssClass}" onclick="openDetail('${item.id}')">
+                    <div class="reyon-baslik">
+                        <span>📍 ${item.id}</span>
+                        <span style="color: var(--primary);">${toplamUrun} Adet</span>
+                    </div>
+                    <div class="reyon-detay">👤 ${item.personel} &nbsp;|&nbsp; 📦 ${urunCesitSayisi} Çeşit Ürün</div>
+                </div>
+            `;
+        });
+    }
+
+    window.sistemeStokYukle = () => {
+        const fileInput = document.getElementById('excelInput');
+        if(!fileInput.files.length) {
+            alert("Lütfen bir Excel dosyası seçin!");
+            return;
+        }
+        
+        const btn = document.getElementById('btnUpload');
+        btn.innerText = "⏳ Veriler İşleniyor, Bekleyin...";
+        btn.disabled = true;
+
+        let reader = new FileReader();
+        reader.onload = async function(ev) {
+            try {
+                let data = new Uint8Array(ev.target.result);
+                let workbook = XLSX.read(data, {type: 'array'});
+                let json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {header: 1});
+
+                let anaStok = {};
+                let eklenenCount = 0;
+
+                for(let i = 1; i < json.length; i++) {
+                    let row = json[i];
+                    let barkod = row[0] ? String(row[0]).trim() : null;
+                    if(barkod) {
+                        anaStok[barkod] = {
+                            ad: row[1] || "İsimsiz Ürün",
+                            renk: row[5] || "-",
+                            beden: row[6] || "-"
+                        };
+                        eklenenCount++;
+                    }
+                }
+                
+                const { error } = await supabase.from('magaza_sayim_onay').upsert({
+                    id: "SISTEM_STOK_LISTESI",
+                    personel: "SİSTEM MERKEZİ",
+                    durum: "SİSTEM",
+                    urunler: anaStok
+                });
+
+                if(error) throw error;
+                alert(`✅ BAŞARILI! Toplam ${eklenenCount} ürün sisteme yüklendi.\nPersonellerin cihazları sayfayı yenilediklerinde veya açtıklarında bu listeyi otomatik çekecek.`);
+                
+            } catch (err) {
+                console.error(err);
+                alert("❌ Yükleme sırasında bir hata oluştu!");
+            } finally {
+                btn.innerText = "🚀 Buluta Yükle";
+                btn.disabled = false;
+                fileInput.value = ""; // Inputu temizle
+            }
+        };
+        reader.readAsArrayBuffer(fileInput.files[0]);
+    };
+
+    window.openDetail = (id) => {
+        incelenenReyonId = id;
+        const veri = tumSaimlar.find(x => x.id === id);
+        if(!veri) return;
+
+        document.getElementById('detayLokasyon').innerText = veri.id;
+        document.getElementById('detayPersonel').innerText = "👤 Sayımı Yapan: " + veri.personel;
+
+        const uList = document.getElementById('detayUrunler');
+        uList.innerHTML = "";
+
+        for(let barkod in veri.urunler) {
+            let u = veri.urunler[barkod];
+            uList.innerHTML += `
+                <div class="product-item">
+                    <div>
+                        <div style="font-size:11px; color:#888;">${barkod}</div>
+                        <div class="p-ad">${u.ad}</div>
+                        <div class="p-var">${u.varyant}</div>
+                    </div>
+                    <div class="p-adet">${u.miktar}</div>
+                </div>
+            `;
+        }
+
+        if(veri.durum === "Onaylandı") {
+            document.getElementById('actionBar').style.display = "none";
+        } else {
+            document.getElementById('actionBar').style.display = "flex";
+        }
+
+        document.getElementById('detailScreen').style.display = "flex";
+    };
+
+    window.closeDetail = () => {
+        document.getElementById('detailScreen').style.display = "none";
+        incelenenReyonId = null;
+    };
+
+    window.onaylaVeKaydet = async () => {
+        if(confirm("Bu reyonu onaylamak istiyor musunuz?")) {
+            await supabase.from('magaza_sayim_onay').update({ durum: "Onaylandı" }).eq('id', incelenenReyonId);
+            closeDetail();
+        }
+    };
+
+    window.reddetVeSil = async () => {
+        if(confirm("DİKKAT! Bu reyon içindeki tüm okutulan veriler SİLİNECEK ve personelin bu lokasyonu baştan sayması gerekecek. Onaylıyor musunuz?")) {
+            await supabase.from('magaza_sayim_onay').delete().eq('id', incelenenReyonId);
+            alert("Reyon silindi. Lütfen personele reyonu baştan saymasını söyleyin.");
+            closeDetail();
+        }
+    };
+
+    window.wolvoxExcelIndir = () => {
+        let onaylananlar = tumSaimlar.filter(item => item.durum === "Onaylandı");
+        
+        if(onaylananlar.length === 0) {
+            alert("İndirilecek onaylanmış reyon bulunamadı!");
+            return;
+        }
+
+        let excelVerisi = [];
+        onaylananlar.forEach(reyon => {
+            for(let barkod in reyon.urunler) {
+                excelVerisi.push({
+                    "Lokasyon": reyon.id,
+                    "Barkod": barkod,
+                    "Ürün Adı": reyon.urunler[barkod].ad,
+                    "Renk/Beden": reyon.urunler[barkod].varyant,
+                    "Sayım Miktarı": reyon.urunler[barkod].miktar
+                });
+            }
+        });
+
+        const ws = XLSX.utils.json_to_sheet(excelVerisi);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Sayim_Sonuclari");
+        XLSX.writeFile(wb, "Ambar_Bucak_Wolvox_Sayim_Raporu.xlsx");
+    };
+
+</script>
+</body>
+</html>

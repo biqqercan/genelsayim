@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AMBAR BUCAK - Hızlı Sayım Terminali</title>
+    <style>
+        :root { --primary: #0d47a1; --success: #28a745; --danger: #dc3545; --dark: #343a40; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f4f6f9; margin: 0; padding: 10px; color: #333; }
+        .container { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); min-height: 95vh; display: flex; flex-direction: column;}
+        
+        /* Giriş ve Kurulum Ekranı */
+        #setupScreen { flex-grow: 1; display: flex; flex-direction: column; justify-content: center; }
+        .input-group { margin-bottom: 20px; }
+        .input-group label { display: block; font-weight: bold; margin-bottom: 8px; font-size: 15px; color: #555; }
+        input[type="text"] { width: 100%; padding: 15px; border: 2px solid #ddd; border-radius: 8px; font-size: 18px; box-sizing: border-box; }
+        
+        .btn { width: 100%; padding: 18px; border: none; border-radius: 8px; font-size: 20px; font-weight: bold; color: white; cursor: pointer; margin-top: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: 0.2s;}
+        .btn:disabled { background: #9e9e9e; cursor: not-allowed; transform: none; box-shadow: none; }
+        .btn:active:not(:disabled) { transform: translateY(2px); }
+        .btn-primary { background: var(--primary); }
+        
+        #syncStatus { text-align: center; font-size: 13px; font-weight: bold; color: #666; margin-top: 15px; }
+
+        /* Sayım Ekranı */
+        #scanScreen { display: none; flex-grow: 1; flex-direction: column;}
+        .header-info { display: flex; justify-content: space-between; background: var(--dark); color: white; padding: 12px; border-radius: 8px; margin-bottom: 15px; font-weight: bold; font-size: 15px; }
+        #barkodInput { font-size: 24px; font-weight: bold; text-align: center; border-color: var(--primary); padding: 15px; }
+        
+        .feedback-box { padding: 15px; border-radius: 8px; margin: 15px 0; text-align: center; display: none; font-weight: bold; }
+        .feedback-success { background: #d4edda; color: #155724; border: 2px solid var(--success); display: block; }
+        .feedback-error { background: #f8d7da; color: #721c24; border: 2px solid var(--danger); display: block; }
+        
+        .product-name { font-size: 18px; margin-bottom: 5px; }
+        .product-variant { font-size: 14px; color: #e65100; background: #ffe0b2; display: inline-block; padding: 4px 8px; border-radius: 4px; }
+        
+        .scanned-list { flex-grow: 1; overflow-y: auto; border: 1px solid #ddd; border-radius: 8px; padding: 5px; margin-bottom: 15px; max-height: 40vh; }
+        .list-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #eee; }
+        .list-qty { font-size: 20px; font-weight: bold; color: var(--success); }
+        
+        .btn-finish { background: var(--success); margin-top: auto; }
+        .btn-manual { background: #6c757d; padding: 12px; font-size: 15px; margin-top: 5px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- ADIM 1: GİRİŞ EKRANI -->
+    <div id="setupScreen">
+        <h2 style="color: var(--primary); text-align: center; font-size: 28px; margin-bottom: 30px;">AMBAR BUCAK<br><span style="font-size:16px; color:#666;">Sayım Terminali</span></h2>
+        
+        <div class="input-group">
+            <label>Personel Adı:</label>
+            <input type="text" id="personelAd" placeholder="Örn: Ali Yılmaz" autocomplete="off">
+        </div>
+        
+        <div class="input-group">
+            <label>Sayılacak Lokasyon (Reyon):</label>
+            <input type="text" id="lokasyonAd" placeholder="Örn: A1 Rafı" autocomplete="off">
+        </div>
+
+        <button id="btnBasla" class="btn btn-primary" onclick="sayimaBasla()" disabled>⏳ Sistem Hazırlanıyor...</button>
+        <div id="syncStatus">Stok verileri kontrol ediliyor...</div>
+    </div>
+
+    <!-- ADIM 2: KÖR SAYIM EKRANI -->
+    <div id="scanScreen">
+        <div class="header-info">
+            <span id="aktifPersonel"></span>
+            <span id="aktifLokasyon" style="color:#ffeb3b;"></span>
+        </div>
+
+        <input type="text" id="barkodInput" placeholder="Barkod Okut..." inputmode="none" autocomplete="off">
+        <button class="btn btn-manual" onclick="manuelGiris()">⌨️ Okunmayan Barkodu Elle Gir</button>
+
+        <div id="feedbackBox" class="feedback-box">
+            <div id="fbBarkod" style="font-size: 12px; color: #666;"></div>
+            <div id="fbAd" class="product-name"></div>
+            <div id="fbVaryant" class="product-variant"></div>
+        </div>
+
+        <h4 style="margin: 10px 0 5px 0; border-bottom: 2px solid #ddd; padding-bottom: 5px;">Bu Reyonda Okutulanlar</h4>
+        <div class="scanned-list" id="okunanListesi"></div>
+
+        <button class="btn btn-finish" onclick="reyonuBitir()">✅ Reyonu Bitir ve Onaya Gönder</button>
+    </div>
+</div>
+
+<script type="module">
+    import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
+
+    const supabaseUrl = 'https://ytexpxvxprpzhcgraans.supabase.co'; 
+    const supabaseKey = 'sb_publishable_FdqsDI_9kCgiO9OAay3Pdg_RBn7JnmF'; 
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    let offlineStok = JSON.parse(localStorage.getItem('ambarStok')) || {};
+    let okunanUrunler = {}; 
+    let seciliPersonel = "";
+    let seciliLokasyon = "";
+
+    const playSuccess = () => { const a = new AudioContext(); const o = a.createOscillator(); const g = a.createGain(); o.connect(g); g.connect(a.destination); o.frequency.value = 900; g.gain.exponentialRampToValueAtTime(0.0001, a.currentTime + 0.1); o.start(); o.stop(a.currentTime + 0.1); };
+    const playError = () => { const a = new AudioContext(); const o = a.createOscillator(); const g = a.createGain(); o.connect(g); g.connect(a.destination); o.frequency.value = 150; o.type = 'sawtooth'; g.gain.exponentialRampToValueAtTime(0.0001, a.currentTime + 0.5); o.start(); o.stop(a.currentTime + 0.5); };
+
+    // OTOMATİK SENKRONİZASYON (Sayfa açılır açılmaz çalışır)
+    async function otomatikStokGuncelle() {
+        const btnBasla = document.getElementById('btnBasla');
+        const syncStatus = document.getElementById('syncStatus');
+
+        if (navigator.onLine) {
+            try {
+                const { data, error } = await supabase.from('magaza_sayim_onay').select('urunler').eq('id', 'SISTEM_STOK_LISTESI').single();
+                if (!error && data && data.urunler) {
+                    offlineStok = data.urunler;
+                    localStorage.setItem('ambarStok', JSON.stringify(offlineStok));
+                    syncStatus.innerText = `✅ Stoklar Güncel (${Object.keys(offlineStok).length} Ürün)`;
+                    syncStatus.style.color = "var(--success)";
+                } else {
+                    syncStatus.innerText = "⚠️ Sunucuda stok bulunamadı, mevcut hafıza kullanılacak.";
+                }
+            } catch (err) {
+                syncStatus.innerText = "Bağlantı zayıf, mevcut cihaz hafızası kullanılacak.";
+            }
+        } else {
+            syncStatus.innerText = `Cihaz çevrimdışı. Mevcut hafızayla (${Object.keys(offlineStok).length} ürün) sayım yapılacak.`;
+            syncStatus.style.color = "#ff9800";
+        }
+
+        // Kontrol bittikten sonra butonu aktif et
+        btnBasla.innerText = "Sayıma Başla 🚀";
+        btnBasla.disabled = false;
+    }
+
+    // Ekran yüklenir yüklenmez senkronizasyonu başlat
+    window.onload = otomatikStokGuncelle;
+
+    window.sayimaBasla = () => {
+        seciliPersonel = document.getElementById('personelAd').value.trim();
+        seciliLokasyon = document.getElementById('lokasyonAd').value.trim();
+
+        if(!seciliPersonel || !seciliLokasyon) {
+            alert("Lütfen Personel Adı ve Lokasyon bilgilerini doldurun!");
+            return;
+        }
+        if(Object.keys(offlineStok).length === 0) {
+            alert("⚠️ DİKKAT: Cihaz hafızasında stok listesi yok! Lütfen internete bağlanıp sayfayı yenileyin.");
+            return;
+        }
+
+        document.getElementById('setupScreen').style.display = "none";
+        document.getElementById('scanScreen').style.display = "flex";
+        
+        document.getElementById('aktifPersonel').innerText = "👤 " + seciliPersonel;
+        document.getElementById('aktifLokasyon').innerText = "📍 " + seciliLokasyon;
+        
+        document.getElementById('barkodInput').focus();
+    };
+
+    const barkodInput = document.getElementById('barkodInput');
+    
+    barkodInput.addEventListener('keypress', function (e) {
+        if (e.key === 'Enter') {
+            let b = this.value.trim();
+            islemeAl(b);
+            this.value = "";
+        }
+    });
+
+    window.manuelGiris = () => {
+        let b = prompt("Lütfen okunmayan barkodu / stok kodunu DİKKATLİCE yazın:");
+        if(b && b.trim() !== "") {
+            islemeAl(b.trim());
+        }
+        barkodInput.focus();
+    };
+
+    function islemeAl(b) {
+        if(!b) return;
+        const fbBox = document.getElementById('feedbackBox');
+        let urun = offlineStok[b];
+        
+        if(!urun) {
+            playError();
+            fbBox.className = "feedback-box feedback-error";
+            document.getElementById('fbBarkod').innerText = b;
+            document.getElementById('fbAd').innerText = "❌ KAYIT BULUNAMADI!";
+            document.getElementById('fbVaryant').innerText = "Bu barkod sistemde yok, kenara ayırın.";
+            navigator.vibrate && navigator.vibrate([200, 100, 200]);
+            return;
+        }
+
+        playSuccess();
+        let varyantBirlestir = `${urun.renk} / ${urun.beden}`;
+        
+        if(okunanUrunler[b]) {
+            okunanUrunler[b].miktar += 1;
+        } else {
+            okunanUrunler[b] = { ad: urun.ad, varyant: varyantBirlestir, miktar: 1 };
+        }
+
+        fbBox.className = "feedback-box feedback-success";
+        document.getElementById('fbBarkod').innerText = b;
+        document.getElementById('fbAd').innerText = urun.ad;
+        document.getElementById('fbVaryant').innerText = "👕 " + varyantBirlestir;
+
+        listeyiGuncelle();
+        barkodInput.focus();
+    }
+
+    function listeyiGuncelle() {
+        const liste = document.getElementById('okunanListesi');
+        liste.innerHTML = "";
+        Object.keys(okunanUrunler).reverse().forEach(b => {
+            let u = okunanUrunler[b];
+            liste.innerHTML += `
+                <div class="list-item">
+                    <div>
+                        <div style="font-weight:bold; font-size:14px;">${b}</div>
+                        <div style="font-size:11px; color:#666;">${u.ad}</div>
+                    </div>
+                    <div class="list-qty">${u.miktar}</div>
+                </div>
+            `;
+        });
+    }
+
+    window.reyonuBitir = async () => {
+        if(Object.keys(okunanUrunler).length === 0) {
+            alert("Bu reyonda hiç ürün okutmadınız!");
+            return;
+        }
+        if(!confirm(`📍 ${seciliLokasyon} reyonunu bitirip Onaya Göndermek istediğinize emin misiniz?`)) return;
+
+        const btn = document.querySelector('.btn-finish');
+        btn.innerText = "⏳ Gönderiliyor...";
+        btn.disabled = true;
+
+        const gonderilecekVeri = {
+            id: seciliLokasyon,
+            personel: seciliPersonel,
+            urunler: okunanUrunler,
+            durum: "Onay Bekliyor"
+        };
+
+        try {
+            const { data, error } = await supabase.from('magaza_sayim_onay').upsert([gonderilecekVeri]);
+            if(error) throw error;
+
+            alert("✅ Başarılı! Veriler yönetici ekranına düştü.");
+            
+            okunanUrunler = {};
+            document.getElementById('lokasyonAd').value = "";
+            document.getElementById('scanScreen').style.display = "none";
+            document.getElementById('setupScreen').style.display = "flex";
+            document.getElementById('feedbackBox').style.display = "none";
+            listeyiGuncelle();
+            
+        } catch (err) {
+            console.error(err);
+            alert("❌ İnternet bağlantısı koptu! Veriler gönderilemedi. Cihazı internetin çektiği bir yere götürüp tekrar 'Bitir' butonuna basın.");
+        } finally {
+            btn.innerText = "✅ Reyonu Bitir ve Onaya Gönder";
+            btn.disabled = false;
+        }
+    };
+</script>
+</body>
+</html>
