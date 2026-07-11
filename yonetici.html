@@ -4,6 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>AMBAR BUCAK Yönetici Paneli</title>
+    
+    <!-- iOS Safari Tam Ekran / Uygulama Modu Destek Kodları -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Ambar Bucak">
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         :root { --primary: #0d47a1; --success: #28a745; --danger: #dc3545; --light: #f8f9fa; }
@@ -309,7 +315,6 @@
         }
     };
 
-    // YENİ EKLENEN SIFIRLAMA FONKSİYONU
     window.sistemiSifirla = async () => {
         const onay1 = confirm("DİKKAT! Personellerin yaptığı tüm test sayımları, bekleyen ve onaylanan reyonlar silinecek. Emin misiniz?");
         if (!onay1) return;
@@ -318,7 +323,6 @@
         if (!onay2) return;
 
         try {
-            // SISTEM_STOK_LISTESI hariç tüm verileri sil
             const { error } = await supabase
                 .from('magaza_sayim_onay')
                 .delete()
@@ -327,7 +331,7 @@
             if (error) throw error;
 
             alert("✅ Sistem başarıyla sıfırlandı! Test sayımları temizlendi, ana stok listesi korundu.");
-            verileriGetir(); // Ekranı hemen güncelle
+            verileriGetir(); 
             
         } catch (err) {
             console.error(err);
@@ -361,6 +365,38 @@
         XLSX.utils.book_append_sheet(wb, ws, "Sayim_Sonuclari");
         XLSX.writeFile(wb, "Ambar_Bucak_Wolvox_Sayim_Raporu.xlsx");
     };
+
+    // ==========================================
+    // iOS Safari / Ekran Kilidi Çözümü
+    // ==========================================
+    document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") {
+            uygulamayiTazele();
+        }
+    });
+
+    window.addEventListener("pageshow", (event) => {
+        if (event.persisted) {
+            uygulamayiTazele();
+        }
+    });
+
+    function uygulamayiTazele() {
+        const connText = document.getElementById('connStatus');
+        if (connText) connText.innerText = "🟡 Bağlantı Yenileniyor...";
+
+        supabase.removeAllChannels();
+        verileriGetir();
+
+        supabase.channel('yonetici_dinle_' + Date.now())
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'magaza_sayim_onay' }, payload => {
+                verileriGetir();
+            }).subscribe((status) => {
+                if (status === 'SUBSCRIBED') {
+                    if (connText) connText.innerText = "🟢 Canlı Bağlantı Aktif";
+                }
+            });
+    }
 
 </script>
 </body>
