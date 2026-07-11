@@ -181,6 +181,11 @@
             (aktifSekme === 'bekleyen' ? item.durum === "Onay Bekliyor" : item.durum === "Onaylandı")
         );
 
+        // --- YENİ EKLENEN AKILLI SIRALAMA ---
+        // A1, A2... A10, B1... şeklinde nizami sıralar
+        gosterilecekler.sort((a, b) => a.id.localeCompare(b.id, 'tr', { numeric: true, sensitivity: 'base' }));
+        // ------------------------------------
+
         if(gosterilecekler.length === 0) {
             listDiv.innerHTML = `<div style="text-align:center; padding: 40px 20px; color:#888;">Bu sekmede gösterilecek kayıt yok.</div>`;
             return;
@@ -342,6 +347,9 @@
     window.wolvoxExcelIndir = () => {
         let onaylananlar = tumSaimlar.filter(item => item.durum === "Onaylandı");
         
+        // Excel indirirken de listeyi A1, A2... A10 şeklinde sıralı indirir
+        onaylananlar.sort((a, b) => a.id.localeCompare(b.id, 'tr', { numeric: true, sensitivity: 'base' }));
+
         if(onaylananlar.length === 0) {
             alert("İndirilecek onaylanmış reyon bulunamadı!");
             return;
@@ -397,7 +405,6 @@
                 }
             });
     }
-
 </script>
 </body>
 </html>
