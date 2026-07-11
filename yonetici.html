@@ -55,7 +55,7 @@
     <div class="tabs">
         <button class="tab-btn active" onclick="switchTab('bekleyen')">⏳ Bekleyen</button>
         <button class="tab-btn" onclick="switchTab('onaylanan')">✅ Onaylı</button>
-        <button class="tab-btn" onclick="switchTab('ayarlar')">⚙️ Stok Yükle</button>
+        <button class="tab-btn" onclick="switchTab('ayarlar')">⚙️ Stok Yükle / Ayarlar</button>
     </div>
 
     <div id="listScreen" class="list-container"></div>
@@ -76,6 +76,12 @@
             </div>
             
             <button id="btnUpload" class="btn-action btn-approve" style="width: 100%; background: #0dcaf0;" onclick="sistemeStokYukle()">🚀 Buluta Yükle</button>
+            
+            <div style="margin-top: 35px; border-top: 2px dashed #eee; padding-top: 25px;">
+                <h4 style="color: var(--danger); margin: 0 0 10px 0;">⚠️ Tehlikeli Alan (Sistemi Sıfırla)</h4>
+                <p style="font-size: 13px; color: #666; margin-bottom: 15px;">Test sayımlarını veya eski döneme ait tüm okumaları silerek temiz bir başlangıç yapın. <br><b>(Yüklediğiniz ana stok listesi silinmez, sadece sayımlar temizlenir).</b></p>
+                <button class="btn-action btn-reject" style="width: 100%; background: var(--danger);" onclick="sistemiSifirla()">🗑️ TÜM SAYIMLARI SIFIRLA</button>
+            </div>
         </div>
     </div>
 
@@ -300,6 +306,32 @@
             await supabase.from('magaza_sayim_onay').delete().eq('id', incelenenReyonId);
             alert("Reyon silindi. Lütfen personele reyonu baştan saymasını söyleyin.");
             closeDetail();
+        }
+    };
+
+    // YENİ EKLENEN SIFIRLAMA FONKSİYONU
+    window.sistemiSifirla = async () => {
+        const onay1 = confirm("DİKKAT! Personellerin yaptığı tüm test sayımları, bekleyen ve onaylanan reyonlar silinecek. Emin misiniz?");
+        if (!onay1) return;
+
+        const onay2 = confirm("Bu işlem geri alınamaz! Temiz bir başlangıç yapılacak. Onaylıyor musunuz?");
+        if (!onay2) return;
+
+        try {
+            // SISTEM_STOK_LISTESI hariç tüm verileri sil
+            const { error } = await supabase
+                .from('magaza_sayim_onay')
+                .delete()
+                .neq('id', 'SISTEM_STOK_LISTESI');
+
+            if (error) throw error;
+
+            alert("✅ Sistem başarıyla sıfırlandı! Test sayımları temizlendi, ana stok listesi korundu.");
+            verileriGetir(); // Ekranı hemen güncelle
+            
+        } catch (err) {
+            console.error(err);
+            alert("❌ Sıfırlama sırasında bir hata oluştu!");
         }
     };
 
